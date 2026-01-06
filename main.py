@@ -1,143 +1,212 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 
-# =========================
-# CONFIG
-# =========================
-st.set_page_config(
-    page_title="Black Friday Sale Analysis",
-    layout="wide"
-)
-
-# =========================
-# APP TITLE
-# =========================
+# Streamlit app title
 st.title("Black Friday Sale Analysis Dashboard")
 
-# =========================
-# DEFAULT DATA URL
-# =========================
-data_url = "https://raw.githubusercontent.com/Tiffany-14/Black_Friday_Sale/main/Black_Friday_Sale.csv"
+# Định nghĩa URL dữ liệu mặc định
+data_url = "https://raw.githubusercontent.com/Tiffany-14/Black_Friday_Sale/refs/heads/main/Black_Friday_Sale.csv"
 
-# =========================
-# LOAD DATA
-# =========================
+# Tải dữ liệu
 @st.cache_data
-def load_data(url):
-    return pd.read_csv(url)
+def load_data():
+    df = pd.read_csv(data_url)
+    # Xử lý cơ bản: Điền NaN bằng 0.0 cho Product_Category_2 và 3, loại bỏ duplicates
+    df[['Product_Category_2', 'Product_Category_3']] = df[['Product_Category_2', 'Product_Category_3']].fillna(0.0)
+    df = df.drop_duplicates()
+    return df
 
-df = load_data(data_url)
+df = load_data()
 
-# =========================
-# DATA PREVIEW
-# =========================
-st.subheader("📄 Dataset Overview")
+st.sidebar.header("Điều hướng")
+page = st.sidebar.radio("Chọn phần phân tích", 
+                        ["Tổng quan dữ liệu", 
+                         "Phân tích theo Nhóm tuổi", 
+                         "Phân tích theo Giới tính & Độ tuổi", 
+                         "Phân tích theo Thành phố", 
+                         "Các biểu đồ trực quan", 
+                         "Phân cụm khách hàng (Clustering)", 
+                         "Dự đoán mức chi tiêu (Linear Regression)"])
 
-col1, col2 = st.columns(2)
-with col1:
-    st.write("Shape:", df.shape)
-with col2:
-    st.write("Missing Values:")
-    st.write(df.isnull().sum())
+# --- TỔNG QUAN DỮ LIỆU ---
+if page == "Tổng quan dữ liệu":
+    st.header("Tổng quan dữ liệu Black Friday Sale")
+    st.write(f"Số bản ghi sau xử lý: **{len(df):,}**")
+    st.dataframe(df.head())
+    st.subheader("Thông tin dữ liệu")
+    st.text(df.info())
+    st.subheader("Mô tả thống kê")
+    st.dataframe(df.describe())
 
-st.dataframe(df.head())
+# --- PHÂN TÍCH THEO NHÓM TUỔI (AGE TIER) ---
+elif page == "Phân tích theo Nhóm tuổi":
+    st.header("Phân tích mua hàng theo Nhóm tuổi cốt lõi (Age Tier)")
 
-# =========================
-# DATA CLEANING
-# =========================
-st.subheader("🧹 Data Cleaning")
+    # Tạo cột Age_Tier
+    def create_age_group_tier(age_str):
+        if age_str in ['0-17', '18-25']:
+            return 'Young_Adults'
+        elif age_str in ['26-35', '36-45', '46-50']:
+            return 'Middle_Age'
+        else:  # '51-55', '55+'
+            return 'Seniors'
 
-df['Product_Category_2'] = df['Product_Category_2'].fillna(0)
-df['Product_Category_3'] = df['Product_Category_3'].fillna(0)
+    df_age = df.copy()
+    df_age['Age_Tier'] = df_age['Age'].apply(create_age_group_tier)
 
-st.success("✔ Missing values handled successfully")
+    age_analysis = df_age.groupby('Age_Tier')['Purchase'].agg(
+        ['count', 'mean', 'median', 'sum']
+    ).rename(columns={
+        'count': 'Count_Records',
+        'mean': 'Mean_Purchase',
+        'median': 'Median_Purchase',
+        'sum': 'Total_Purchase'
+    }).sort_values(by='Mean_Purchase', ascending=False)
 
-# =========================
-# EDA
-# =========================
-st.subheader("📊 Exploratory Data Analysis")
+    age_analysis['Mean_Purchase'] = age_analysis['Mean_Purchase'].round(2)
+    age_analysis['Median_Purchase'] = age_analysis['Median_Purchase'].round(2)
+    age_analysis['Total_Purchase'] = age_analysis['Total_Purchase'].round(2)
 
-col1, col2 = st.columns(2)
+    st.dataframe(age_analysis.style.format("{:,.2f}"))
 
-with col1:
-    fig, ax = plt.subplots()
-    sns.histplot(df['Purchase'], bins=30, kde=True, ax=ax)
-    ax.set_title("Distribution of Purchase Amount")
-    st.pyplot(fig)
+# --- PHÂN TÍCH THEO GIỚI TÍNH & ĐỘ TUỔI ---
+elif page == "Phân tích theo Giới tính & Độ tuổi":
+    st.header("Phân tích tần suất và mức chi tiêu theo Giới tính & Độ tuổi")
 
-with col2:
-    fig, ax = plt.subplots()
-    sns.boxplot(x='Gender', y='Purchase', data=df, ax=ax)
-    ax.set_title("Purchase by Gender")
-    st.pyplot(fig)
+    # 1. Tần suất theo Giới tính
+    st.subheader("Tần suất khách hàng theo Giới tính")
+    gender_counts = df['Gender'].value_counts()
+    gender_percentage = df['Gender'].value_counts(normalize=True).mul(100).round(2)
+    gender_dist = pd.DataFrame({
+        'Total Transactions': gender_counts,
+        'Percentage (%)': gender_percentage
+    })
+    gender_dist.index = ['Male (M)', 'Female (F)']
+    st.dataframe(gender_dist)
 
-# =========================
-# KMEANS CLUSTERING
-# =========================
-st.subheader("🤖 Customer Segmentation (KMeans)")
+    # 2. Tần suất theo Độ tuổi
+    st.subheader("Tần suất khách hàng theo Độ tuổi")
+    age_summary = pd.DataFrame({
+        'Total Transactions': df['Age'].value_counts().sort_index(),
+        'Percentage (%)': df['Age'].value_counts(normalize=True).mul(100).round(2).sort_index()
+    }).reset_index()
+    st.dataframe(age_summary)
 
-k = st.slider("Select number of clusters (K)", 2, 10, 4)
+    # 3. Mức chi tiêu trung bình theo Giới tính & Độ tuổi
+    st.subheader("Mức chi tiêu trung bình theo Giới tính và Độ tuổi")
+    gender_age_pivot = df.pivot_table(
+        values='Purchase',
+        index='Age',
+        columns='Gender',
+        aggfunc='mean'
+    ).round(2)
+    st.dataframe(gender_age_pivot.style.format("{:,.2f}"))
 
-cluster_df = df[['Age', 'Purchase']].copy()
-cluster_df['Age'] = cluster_df['Age'].astype('category').cat.codes
+# --- PHÂN TÍCH THEO THÀNH PHỐ ---
+elif page == "Phân tích theo Thành phố":
+    st.header("Phân tích mức chi tiêu theo Thành phố và Giới tính")
 
-scaler = StandardScaler()
-scaled_data = scaler.fit_transform(cluster_df)
+    city_gender_pivot = df.pivot_table(
+        values='Purchase',
+        index='City_Category',
+        columns='Gender',
+        aggfunc='mean'
+    ).round(2)
+    st.dataframe(city_gender_pivot.style.format("{:,.2f}"))
 
-kmeans = KMeans(n_clusters=k, random_state=42)
-df['Cluster'] = kmeans.fit_predict(scaled_data)
+# --- CÁC BIỂU ĐỒ TRỰC QUAN ---
+elif page == "Các biểu đồ trực quan":
+    st.header("Các biểu đồ trực quan hóa")
 
-fig, ax = plt.subplots()
-sns.scatterplot(
-    x=df['Age'],
-    y=df['Purchase'],
-    hue=df['Cluster'],
-    palette='tab10',
-    ax=ax
-)
-ax.set_title("Customer Clusters")
-st.pyplot(fig)
+    # Biểu đồ 1: Average Purchase by Age Group and Gender
+    st.subheader("Mức chi tiêu trung bình theo Độ tuổi và Giới tính")
+    fig1, ax1 = plt.subplots(figsize=(12, 7))
+    sns.barplot(data=df.sort_values('Age'), x='Age', y='Purchase', hue='Gender',
+                palette={'M': '#1f77b4', 'F': '#ff7f0e'}, errorbar=None, ax=ax1)
+    ax1.set_title('Average Purchase by Age Group and Gender')
+    ax1.set_xlabel('Age Group')
+    ax1.set_ylabel('Average Purchase (USD)')
+    ax1.legend(title='Gender', labels=['Male (M)', 'Female (F)'])
+    st.pyplot(fig1)
 
-# =========================
-# LINEAR REGRESSION
-# =========================
-st.subheader("📈 Purchase Prediction (Linear Regression)")
+    # Biểu đồ 2: Total Purchase by City Category
+    st.subheader("Tổng doanh thu theo Thành phố")
+    df_city = pd.get_dummies(df, columns=['City_Category'], prefix='City', dtype=int)
+    city_purchase = df_city[['City_A', 'City_B', 'City_C']].multiply(df_city['Purchase'], axis=0).sum() / 1000
+    fig2, ax2 = plt.subplots(figsize=(8, 6))
+    sns.barplot(x=city_purchase.index, y=city_purchase.values, ax=ax2)
+    ax2.set_title('Total Purchase by City Category')
+    ax2.set_ylabel('Total Purchase (K$)')
+    st.pyplot(fig2)
 
-model_df = df.copy()
+    # Biểu đồ 3: Product Category 1 Distribution
+    st.subheader("Phân bố Product Category 1 (chỉ các category > 5000 giao dịch)")
+    product_cat1_counts = df['Product_Category_1'].value_counts()
+    product_cat1_counts = product_cat1_counts[product_cat1_counts > 5000]
+    fig3, ax3 = plt.subplots(figsize=(8, 8))
+    ax3.pie(product_cat1_counts, labels=[f'Category {int(x)}' for x in product_cat1_counts.index],
+            autopct='%1.1f%%', startangle=140)
+    ax3.set_title('Product Category 1 Distribution')
+    st.pyplot(fig3)
 
-model_df['Age'] = model_df['Age'].astype('category').cat.codes
-model_df['City_Category'] = model_df['City_Category'].astype('category').cat.codes
+    # Biểu đồ 4: Total Purchase by Years in Current City
+    st.subheader("Tổng doanh thu theo Số năm sống tại thành phố hiện tại")
+    stay_purchase = df.groupby('Stay_In_Current_City_Years')['Purchase'].sum() / 1000
+    fig4, ax4 = plt.subplots(figsize=(8, 6))
+    ax4.plot(stay_purchase.index, stay_purchase.values, marker='o')
+    ax4.set_title('Total Purchase by Years in Current City')
+    ax4.set_xlabel('Years in Current City')
+    ax4.set_ylabel('Total Purchase (K$)')
+    st.pyplot(fig4)
 
-model_df = pd.get_dummies(
-    model_df,
-    columns=['Gender', 'Occupation'],
-    drop_first=True
-)
+# --- PHÂN CỤM KHÁCH HÀNG (KMEANS) ---
+elif page == "Phân cụm khách hàng (Clustering)":
+    st.header("Phân cụm khách hàng bằng K-Means (k=3)")
 
-X = model_df.drop('Purchase', axis=1)
-y = model_df['Purchase']
+    df_cluster = df.copy()
+    df_cluster[['Product_Category_2', 'Product_Category_3']] = df_cluster[['Product_Category_2', 'Product_Category_3']].fillna(df_cluster[['Product_Category_2', 'Product_Category_3']].mode().iloc[0])
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
+    X_cluster = pd.get_dummies(df_cluster.drop(['User_ID', 'Product_ID'], axis=1),
+                               columns=['Gender', 'Age', 'Stay_In_Current_City_Years'], dtype=int)
 
-model = LinearRegression()
-model.fit(X_train, y_train)
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_cluster)
 
-y_pred = model.predict(X_test)
+    kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+    df_cluster['Cluster'] = kmeans.fit_predict(X_scaled)
 
-col1, col2, col3 = st.columns(3)
-col1.metric("MAE", f"{mean_absolute_error(y_test, y_pred):.2f}")
-col2.metric("MSE", f"{mean_squared_error(y_test, y_pred):.2f}")
-col3.metric("R² Score", f"{r2_score(y_test, y_pred):.2f}")
+    st.write("Kết quả phân cụm (5 dòng đầu tiên)")
+    st.dataframe(df_cluster[['User_ID', 'Occupation', 'Marital_Status', 'Purchase', 'Cluster']].head())
 
-st.success("✔ Model trained and evaluated successfully")
+    st.write(f"WCSS (Within-Cluster Sum of Squares): **{kmeans.inertia_ * 0.001:.2f}** (đã điều chỉnh đơn vị)")
+
+# --- DỰ ĐOÁN MỨC CHI TIÊU ---
+elif page == "Dự đoán mức chi tiêu (Linear Regression)":
+    st.header("Mô hình dự đoán mức chi tiêu (Linear Regression)")
+
+    X = df.drop(['Purchase', 'User_ID', 'Product_ID'], axis=1)
+    y = df['Purchase']
+
+    categorical_cols = ['Gender', 'Age', 'Stay_In_Current_City_Years']
+    X = pd.get_dummies(X, columns=categorical_cols, drop_first=True, dtype=int)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+    mae = mean_absolute_error(y_test, y_pred)
+
+    st.write(f"**Mean Squared Error:** {mse:,.4f}")
+    st.write(f"**R-squared:** {r2:.4f}")
+    st.write(f"**Mean Absolute Error:** {mae:,.4f}")
