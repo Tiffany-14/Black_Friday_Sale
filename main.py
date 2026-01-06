@@ -25,29 +25,27 @@ def load_data():
 
 df = load_data()
 
-st.sidebar.header("Điều hướng")
-page = st.sidebar.radio("Chọn phần phân tích", 
-                        ["Tổng quan dữ liệu", 
-                         "Phân tích theo Nhóm tuổi", 
-                         "Phân tích theo Giới tính & Độ tuổi", 
-                         "Phân tích theo Thành phố", 
-                         "Các biểu đồ trực quan", 
-                         "Phân cụm khách hàng (Clustering)", 
-                         "Dự đoán mức chi tiêu (Linear Regression)"])
+st.sidebar.header("Navigation")
+page = st.sidebar.radio("Select analysis section", 
+                        ["Data Overview", 
+                         "Analysis by Age Group", 
+                         "Analysis by Gender & Age", 
+                         "Analysis by City", 
+                         "Visual Charts", 
+                         "Customer Clustering", 
+                         "Linear Regression"])
 
 # --- TỔNG QUAN DỮ LIỆU ---
-if page == "Tổng quan dữ liệu":
-    st.header("Tổng quan dữ liệu Black Friday Sale")
-    st.write(f"Số bản ghi sau xử lý: **{len(df):,}**")
+if page == "Data Overview":
+    st.header("Data Overview Black Friday Sale")
+    st.write(f"Number of records after processing: **{len(df):,}**")
     st.dataframe(df.head())
-    st.subheader("Thông tin dữ liệu")
-    st.text(df.info())
-    st.subheader("Mô tả thống kê")
+    st.subheader("Descriptive statistics")
     st.dataframe(df.describe())
 
 # --- PHÂN TÍCH THEO NHÓM TUỔI (AGE TIER) ---
-elif page == "Phân tích theo Nhóm tuổi":
-    st.header("Phân tích mua hàng theo Nhóm tuổi cốt lõi (Age Tier)")
+elif page == "Analysis by Age Group":
+    st.header("Analyzing purchasing behavior by core age groups (Age Tier)")
 
     # Tạo cột Age_Tier
     def create_age_group_tier(age_str):
@@ -77,11 +75,11 @@ elif page == "Phân tích theo Nhóm tuổi":
     st.dataframe(age_analysis.style.format("{:,.2f}"))
 
 # --- PHÂN TÍCH THEO GIỚI TÍNH & ĐỘ TUỔI ---
-elif page == "Phân tích theo Giới tính & Độ tuổi":
-    st.header("Phân tích tần suất và mức chi tiêu theo Giới tính & Độ tuổi")
+elif page == "Analysis by Gender & Age":
+    st.header("Frequency and spending analysis by Gender & Age")
 
     # 1. Tần suất theo Giới tính
-    st.subheader("Tần suất khách hàng theo Giới tính")
+    st.subheader("Customer frequency by Gender")
     gender_counts = df['Gender'].value_counts()
     gender_percentage = df['Gender'].value_counts(normalize=True).mul(100).round(2)
     gender_dist = pd.DataFrame({
@@ -92,7 +90,7 @@ elif page == "Phân tích theo Giới tính & Độ tuổi":
     st.dataframe(gender_dist)
 
     # 2. Tần suất theo Độ tuổi
-    st.subheader("Tần suất khách hàng theo Độ tuổi")
+    st.subheader("Customer frequency by age group")
     age_summary = pd.DataFrame({
         'Total Transactions': df['Age'].value_counts().sort_index(),
         'Percentage (%)': df['Age'].value_counts(normalize=True).mul(100).round(2).sort_index()
@@ -100,7 +98,7 @@ elif page == "Phân tích theo Giới tính & Độ tuổi":
     st.dataframe(age_summary)
 
     # 3. Mức chi tiêu trung bình theo Giới tính & Độ tuổi
-    st.subheader("Mức chi tiêu trung bình theo Giới tính và Độ tuổi")
+    st.subheader("Average spending by Gender and Age")
     gender_age_pivot = df.pivot_table(
         values='Purchase',
         index='Age',
@@ -110,8 +108,8 @@ elif page == "Phân tích theo Giới tính & Độ tuổi":
     st.dataframe(gender_age_pivot.style.format("{:,.2f}"))
 
 # --- PHÂN TÍCH THEO THÀNH PHỐ ---
-elif page == "Phân tích theo Thành phố":
-    st.header("Phân tích mức chi tiêu theo Thành phố và Giới tính")
+elif page == "Analysis by City":
+    st.header("Analysis of spending levels by City and Gender")
 
     city_gender_pivot = df.pivot_table(
         values='Purchase',
@@ -122,11 +120,11 @@ elif page == "Phân tích theo Thành phố":
     st.dataframe(city_gender_pivot.style.format("{:,.2f}"))
 
 # --- CÁC BIỂU ĐỒ TRỰC QUAN ---
-elif page == "Các biểu đồ trực quan":
-    st.header("Các biểu đồ trực quan hóa")
+elif page == "Visual charts":
+    st.header("Visualization charts")
 
     # Biểu đồ 1: Average Purchase by Age Group and Gender
-    st.subheader("Mức chi tiêu trung bình theo Độ tuổi và Giới tính")
+    st.subheader("Average spending by age and gender")
     fig1, ax1 = plt.subplots(figsize=(12, 7))
     sns.barplot(data=df.sort_values('Age'), x='Age', y='Purchase', hue='Gender',
                 palette={'M': '#1f77b4', 'F': '#ff7f0e'}, errorbar=None, ax=ax1)
@@ -137,7 +135,7 @@ elif page == "Các biểu đồ trực quan":
     st.pyplot(fig1)
 
     # Biểu đồ 2: Total Purchase by City Category
-    st.subheader("Tổng doanh thu theo Thành phố")
+    st.subheader("Total revenue by City")
     df_city = pd.get_dummies(df, columns=['City_Category'], prefix='City', dtype=int)
     city_purchase = df_city[['City_A', 'City_B', 'City_C']].multiply(df_city['Purchase'], axis=0).sum() / 1000
     fig2, ax2 = plt.subplots(figsize=(8, 6))
@@ -147,7 +145,7 @@ elif page == "Các biểu đồ trực quan":
     st.pyplot(fig2)
 
     # Biểu đồ 3: Product Category 1 Distribution
-    st.subheader("Phân bố Product Category 1 (chỉ các category > 5000 giao dịch)")
+    st.subheader("Product Category 1 Distribution (only categories with > 5000 transactions)")
     product_cat1_counts = df['Product_Category_1'].value_counts()
     product_cat1_counts = product_cat1_counts[product_cat1_counts > 5000]
     fig3, ax3 = plt.subplots(figsize=(8, 8))
@@ -157,7 +155,7 @@ elif page == "Các biểu đồ trực quan":
     st.pyplot(fig3)
 
     # Biểu đồ 4: Total Purchase by Years in Current City
-    st.subheader("Tổng doanh thu theo Số năm sống tại thành phố hiện tại")
+    st.subheader("Total revenue by number of years living in the current city")
     stay_purchase = df.groupby('Stay_In_Current_City_Years')['Purchase'].sum() / 1000
     fig4, ax4 = plt.subplots(figsize=(8, 6))
     ax4.plot(stay_purchase.index, stay_purchase.values, marker='o')
@@ -168,10 +166,10 @@ elif page == "Các biểu đồ trực quan":
 
 # --- PHÂN CỤM KHÁCH HÀNG (KMEANS) ---
 
-elif page == "Phân cụm khách hàng (Clustering)":
-    st.header("Phân cụm khách hàng bằng K-Means (k=3)")
+elif page == "Customer Clustering":
+    st.header("Customer clustering using K-Means (k=3)")
 
-    st.warning("⚠️ Phân cụm đang được thực hiện trên mẫu dữ liệu ngẫu nhiên 10.000 bản ghi để đảm bảo tốc độ và ổn định.")
+    st.warning("Clustering is being performed on a random sample of 10,000 records to ensure speed and stability.")
 
     # Lấy mẫu ngẫu nhiên để tránh lỗi bộ nhớ
     df_sample = df.sample(n=10000, random_state=42).copy()
@@ -202,15 +200,15 @@ elif page == "Phân cụm khách hàng (Clustering)":
         kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
         df_sample['Cluster'] = kmeans.fit_predict(X_scaled)
 
-    st.success("✅ Phân cụm hoàn tất!")
+    st.success("Phân cụm hoàn tất!")
 
     # Hiển thị kết quả mẫu
-    st.subheader("Kết quả phân cụm (mẫu 10 dòng)")
+    st.subheader("Clustering results (10-row sample)")
     display_cols = ['User_ID', 'Gender', 'Age', 'City_Category', 'Purchase', 'Cluster']
     st.dataframe(df_sample[display_cols].head(10))
 
     # Thống kê mỗi cụm
-    st.subheader("Thống kê trung bình theo từng cụm")
+    st.subheader("Average statistics by cluster")
     cluster_summary = df_sample.groupby('Cluster').agg({
         'Purchase': ['mean', 'median', 'count'],
         'Age': lambda x: x.mode().iloc[0] if not x.empty else 'N/A',
@@ -229,7 +227,7 @@ elif page == "Phân cụm khách hàng (Clustering)":
     }))
 
     # Biểu đồ mức chi tiêu trung bình theo cụm
-    st.subheader("Mức chi tiêu trung bình theo cụm")
+    st.subheader("Average spending level by cluster")
     fig_cluster, ax_cluster = plt.subplots(figsize=(8, 6))
     sns.barplot(
         data=df_sample,
@@ -244,11 +242,11 @@ elif page == "Phân cụm khách hàng (Clustering)":
     ax_cluster.set_xlabel('Cluster')
     st.pyplot(fig_cluster)
 
-# --- DỰ ĐOÁN MỨC CHI TIÊU (LINEAR REGRESSION) --- (PHIÊN BẢN ĐƠN GIẢN)
-elif page == "Dự đoán mức chi tiêu (Linear Regression)":
-    st.header("Dự đoán mức chi tiêu (Linear Regression - Phiên bản đơn giản)")
+# --- DỰ ĐOÁN MỨC CHI TIÊU (LINEAR REGRESSION) 
+elif page == "Linear Regression":
+    st.header("Linear Regression")
 
-    st.info("🔹 Mô hình được huấn luyện nhanh trên 20.000 bản ghi ngẫu nhiên để đảm bảo tốc độ.")
+    st.info("The model was quickly trained on over 20,000 random records to ensure speed.")
 
     # Lấy mẫu nhỏ để chạy nhanh
     df_sample = df.sample(n=20000, random_state=42).copy()
@@ -276,14 +274,14 @@ elif page == "Dự đoán mức chi tiêu (Linear Regression)":
     mae = mean_absolute_error(y_test, y_pred)
 
     # Hiển thị kết quả đẹp mắt
-    st.success("✅ Huấn luyện thành công!")
+    st.success(" Huấn luyện thành công!")
     
     col1, col2 = st.columns(2)
-    col1.metric("Độ chính xác mô hình (R²)", f"{r2:.4f}")
-    col2.metric("Sai số trung bình (MAE)", f"{mae:,.0f} USD")
+    col1.metric("Model accuracy (R²)", f"{r2:.4f}")
+    col2.metric("Average error (MAE)", f"{mae:,.0f} USD")
 
     st.write("""
-    **Giải thích ngắn gọn:**
-    - R² khoảng **0.13 - 0.15**: Mô hình giải thích được ~14% biến thiên trong mức chi tiêu (bình thường với dữ liệu mua sắm Black Friday).
-    - MAE khoảng **2,400 - 2,600 USD**: Dự đoán sai trung bình ±2,500 USD so với thực tế.
+    **Explanation:**
+    - R² of approximately **0.13 - 0.15**: The model explains about 14% of the variation in spending levels (normal for Black Friday shopping data).
+    - MAE of approximately **2,400 - 2,600 USD**: The average prediction error is ±2,500 USD compared to reality.
     """)
