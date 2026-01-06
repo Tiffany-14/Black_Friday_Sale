@@ -244,30 +244,30 @@ elif page == "Phân cụm khách hàng (Clustering)":
     ax_cluster.set_xlabel('Cluster')
     st.pyplot(fig_cluster)
 
-# --- DỰ ĐOÁN MỨC CHI TIÊU (LINEAR REGRESSION)
+# --- DỰ ĐOÁN MỨC CHI TIÊU (LINEAR REGRESSION) 
 elif page == "Dự đoán mức chi tiêu (Linear Regression)":
-    st.header("Mô hình dự đoán mức chi tiêu bằng Linear Regression")
+    st.header("Dự đoán mức chi tiêu (Linear Regression - Phiên bản đơn giản)")
 
-    st.warning("⚠️ Để đảm bảo tốc độ và ổn định, mô hình được huấn luyện trên mẫu ngẫu nhiên 50.000 bản ghi (khoảng 10% dữ liệu gốc).")
+    st.info("Sử dụng mẫu 20.000 bản ghi để huấn luyện nhanh và ổn định.")
 
-    # Lấy mẫu dữ liệu để tránh lỗi bộ nhớ/timeout
-    df_sample = df.sample(n=50000, random_state=42).copy()
+    # Lấy mẫu nhỏ để chạy nhanh
+    df_sample = df.sample(n=20000, random_state=42).copy()
 
-    # Tiền xử lý
+    # Tiền xử lý cơ bản
     df_sample[['Product_Category_2', 'Product_Category_3']] = df_sample[['Product_Category_2', 'Product_Category_3']].fillna(0.0)
 
     X = df_sample.drop(['Purchase', 'User_ID', 'Product_ID'], axis=1)
     y = df_sample['Purchase']
 
-    # Đảm bảo encode đầy đủ các cột categorical (bao gồm cả City_Category)
+    # One-hot encoding các cột categorical
     categorical_cols = ['Gender', 'Age', 'City_Category', 'Stay_In_Current_City_Years']
     X = pd.get_dummies(X, columns=categorical_cols, drop_first=True, dtype=int)
 
-    # Chia dữ liệu train/test
+    # Chia train/test
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     # Huấn luyện mô hình
-    with st.spinner("Đang huấn luyện mô hình Linear Regression..."):
+    with st.spinner("Đang huấn luyện mô hình..."):
         model = LinearRegression()
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
@@ -276,34 +276,14 @@ elif page == "Dự đoán mức chi tiêu (Linear Regression)":
         r2 = r2_score(y_test, y_pred)
         mae = mean_absolute_error(y_test, y_pred)
 
-    st.success("✅ Huấn luyện mô hình hoàn tất!")
+    st.success("Hoàn tất!")
 
-    # Hiển thị kết quả đánh giá
-    st.subheader("Kết quả đánh giá mô hình")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Mean Squared Error (MSE)", f"{mse:,.0f}")
-    col2.metric("R-squared (R²)", f"{r2:.4f}")
-    col3.metric("Mean Absolute Error (MAE)", f"{mae:,.0f}")
+    # Hiển thị kết quả đơn giản
+    st.subheader("Kết quả mô hình")
+    st.write(f"**R-squared (độ chính xác tương đối):** {r2:.4f}  
+             (giá trị khoảng 0.13–0.15 là bình thường với dữ liệu này)")
+    st.write(f"**Mean Absolute Error (sai số trung bình):** ≈ {mae:,.0f} USD  
+             (dự đoán lệch trung bình ±{mae:,.0f} so với thực tế)")
+    st.write(f"**Mean Squared Error:** {mse:,.0f}")
 
-    st.info("""
-    **Giải thích nhanh:**
-    - R² ≈ 0.13–0.15 là bình thường với dữ liệu Black Friday (nhiều yếu tố ngẫu nhiên ảnh hưởng đến chi tiêu).
-    - MAE ≈ 2,400–2,600 nghĩa là dự đoán sai trung bình khoảng ±2,500 USD so với thực tế.
-    """)
-
-    # Biểu đồ so sánh giá trị thực tế vs dự đoán (mẫu nhỏ để hiển thị đẹp)
-    st.subheader("So sánh giá trị thực tế và dự đoán (mẫu 200 điểm)")
-    compare_df = pd.DataFrame({
-        'Actual': y_test.values[:200],
-        'Predicted': y_pred[:200]
-    }).reset_index()
-
-    fig_lr, ax_lr = plt.subplots(figsize=(10, 6))
-    ax_lr.plot(compare_df['index'], compare_df['Actual'], label='Thực tế', marker='o', linestyle='-')
-    ax_lr.plot(compare_df['index'], compare_df['Predicted'], label='Dự đoán', marker='x', linestyle='--')
-    ax_lr.set_title('So sánh Giá trị Thực tế và Dự đoán (Linear Regression)')
-    ax_lr.set_xlabel('Mẫu dữ liệu')
-    ax_lr.set_ylabel('Mức chi tiêu (USD)')
-    ax_lr.legend()
-    ax_lr.grid(True, alpha=0.3)
-    st.pyplot(fig_lr)
+    st.caption("Mô hình Linear Regression đơn giản chỉ đạt độ chính xác vừa phải vì hành vi mua sắm Black Friday có nhiều yếu tố ngẫu nhiên.")
