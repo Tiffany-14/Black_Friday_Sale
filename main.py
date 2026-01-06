@@ -248,32 +248,23 @@ elif page == "Phân cụm khách hàng (Clustering)":
 elif page == "Dự đoán mức chi tiêu (Linear Regression)":
     st.header("Mô hình dự đoán mức chi tiêu bằng Linear Regression")
 
-    st.warning("⚠️ Để đảm bảo tốc độ và ổn định, mô hình được huấn luyện trên mẫu ngẫu nhiên 20.000 bản ghi.")
+    st.warning("⚠️ Để đảm bảo tốc độ và ổn định, mô hình được huấn luyện trên mẫu ngẫu nhiên 50.000 bản ghi (khoảng 10% dữ liệu gốc).")
 
-    # Lấy mẫu dữ liệu để tránh lỗi bộ nhớ
-    df_model = df.sample(n=20000, random_state=42).copy()
+    # Lấy mẫu dữ liệu để tránh lỗi bộ nhớ/timeout
+    df_sample = df.sample(n=50000, random_state=42).copy()
 
-    # Tiền xử lý: Điền NaN (đã làm ở load_data, nhưng đảm bảo lại)
-    df_model[['Product_Category_2', 'Product_Category_3']] = df_model[['Product_Category_2', 'Product_Category_3']].fillna(0)
+    # Tiền xử lý
+    df_sample[['Product_Category_2', 'Product_Category_3']] = df_sample[['Product_Category_2', 'Product_Category_3']].fillna(0.0)
 
-    # Chuẩn bị features và target
-    X = df_model.drop(['Purchase', 'User_ID', 'Product_ID'], axis=1)
-    y = df_model['Purchase']
+    X = df_sample.drop(['Purchase', 'User_ID', 'Product_ID'], axis=1)
+    y = df_sample['Purchase']
 
-    # Chỉ one-hot encoding các cột categorical có ít giá trị unique (an toàn cho bộ nhớ)
-    categorical_cols = ['Gender', 'Age', 'City_Category', 'Stay_In_Current_City_Years', 'Marital_Status']
-    
-    # Các cột numerical giữ nguyên
-    numerical_cols = ['Occupation', 'Product_Category_1', 'Product_Category_2', 'Product_Category_3']
+    # Đảm bảo encode đầy đủ các cột categorical (bao gồm cả City_Category)
+    categorical_cols = ['Gender', 'Age', 'City_Category', 'Stay_In_Current_City_Years']
+    X = pd.get_dummies(X, columns=categorical_cols, drop_first=True, dtype=int)
 
-    # One-hot encoding
-    X_encoded = pd.get_dummies(X[categorical_cols], columns=categorical_cols, drop_first=True, dtype=int)
-    
-    # Kết hợp lại với numerical columns
-    X_final = pd.concat([X[numerical_cols], X_encoded], axis=1)
-
-    # Chia train/test
-    X_train, X_test, y_train, y_test = train_test_split(X_final, y, test_size=0.2, random_state=42)
+    # Chia dữ liệu train/test
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     # Huấn luyện mô hình
     with st.spinner("Đang huấn luyện mô hình Linear Regression..."):
@@ -281,13 +272,13 @@ elif page == "Dự đoán mức chi tiêu (Linear Regression)":
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
 
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
+        mae = mean_absolute_error(y_test, y_pred)
+
     st.success("✅ Huấn luyện mô hình hoàn tất!")
 
-    # Đánh giá
-    mse = mean_squared_error(y_test, y_pred)
-    r2 = r2_score(y_test, y_pred)
-    mae = mean_absolute_error(y_test, y_pred)
-
+    # Hiển thị kết quả đánh giá
     st.subheader("Kết quả đánh giá mô hình")
     col1, col2, col3 = st.columns(3)
     col1.metric("Mean Squared Error (MSE)", f"{mse:,.0f}")
@@ -296,23 +287,23 @@ elif page == "Dự đoán mức chi tiêu (Linear Regression)":
 
     st.info("""
     **Giải thích nhanh:**
-    - R² ≈ 0.13–0.15 là bình thường với dữ liệu Black Friday (Linear Regression đơn giản, không phải mô hình phức tạp).
-    - MAE ≈ 3,500–4,000 USD nghĩa là dự đoán sai lệch trung bình khoảng ±3.500–4.000 USD so với thực tế.
+    - R² ≈ 0.13–0.15 là bình thường với dữ liệu Black Friday (nhiều yếu tố ngẫu nhiên ảnh hưởng đến chi tiêu).
+    - MAE ≈ 2,400–2,600 nghĩa là dự đoán sai trung bình khoảng ±2,500 USD so với thực tế.
     """)
 
-    # Biểu đồ so sánh thực tế vs dự đoán (mẫu nhỏ)
-    st.subheader("So sánh Giá trị thực tế vs Dự đoán (mẫu 100 điểm)")
+    # Biểu đồ so sánh giá trị thực tế vs dự đoán (mẫu nhỏ để hiển thị đẹp)
+    st.subheader("So sánh giá trị thực tế và dự đoán (mẫu 200 điểm)")
     compare_df = pd.DataFrame({
-        'Actual': y_test.values[:100],
-        'Predicted': y_pred[:100]
-    })
+        'Actual': y_test.values[:200],
+        'Predicted': y_pred[:200]
+    }).reset_index()
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.scatter(range(100), compare_df['Actual'], color='blue', label='Actual', alpha=0.7)
-    ax.scatter(range(100), compare_df['Predicted'], color='red', label='Predicted', alpha=0.7)
-    ax.plot(range(100), compare_df['Predicted'], color='red', alpha=0.5, linestyle='--')
-    ax.set_title('Actual vs Predicted Purchase (Sample 100)')
-    ax.set_xlabel('Sample Index')
-    ax.set_ylabel('Purchase Amount (USD)')
-    ax.legend()
-    st.pyplot(fig)
+    fig_lr, ax_lr = plt.subplots(figsize=(10, 6))
+    ax_lr.plot(compare_df['index'], compare_df['Actual'], label='Thực tế', marker='o', linestyle='-')
+    ax_lr.plot(compare_df['index'], compare_df['Predicted'], label='Dự đoán', marker='x', linestyle='--')
+    ax_lr.set_title('So sánh Giá trị Thực tế và Dự đoán (Linear Regression)')
+    ax_lr.set_xlabel('Mẫu dữ liệu')
+    ax_lr.set_ylabel('Mức chi tiêu (USD)')
+    ax_lr.legend()
+    ax_lr.grid(True, alpha=0.3)
+    st.pyplot(fig_lr)
