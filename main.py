@@ -200,7 +200,7 @@ elif page == "Customer Clustering":
         kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
         df_sample['Cluster'] = kmeans.fit_predict(X_scaled)
 
-    st.success("Phân cụm hoàn tất!")
+    st.success("Clustering complete!")
 
     # Hiển thị kết quả mẫu
     st.subheader("Clustering results (10-row sample)")
@@ -274,7 +274,7 @@ elif page == "Linear Regression":
     mae = mean_absolute_error(y_test, y_pred)
 
     # Hiển thị kết quả đẹp mắt
-    st.success(" Huấn luyện thành công!")
+    st.success(" Training successful!")
     
     col1, col2 = st.columns(2)
     col1.metric("Model accuracy (R²)", f"{r2:.4f}")
