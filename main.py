@@ -167,25 +167,82 @@ elif page == "Các biểu đồ trực quan":
     st.pyplot(fig4)
 
 # --- PHÂN CỤM KHÁCH HÀNG (KMEANS) ---
+
 elif page == "Phân cụm khách hàng (Clustering)":
     st.header("Phân cụm khách hàng bằng K-Means (k=3)")
 
-    df_cluster = df.copy()
-    df_cluster[['Product_Category_2', 'Product_Category_3']] = df_cluster[['Product_Category_2', 'Product_Category_3']].fillna(df_cluster[['Product_Category_2', 'Product_Category_3']].mode().iloc[0])
+    st.warning("⚠️ Phân cụm đang được thực hiện trên mẫu dữ liệu ngẫu nhiên 10.000 bản ghi để đảm bảo tốc độ và ổn định.")
 
-    X_cluster = pd.get_dummies(df_cluster.drop(['User_ID', 'Product_ID'], axis=1),
-                               columns=['Gender', 'Age', 'Stay_In_Current_City_Years'], dtype=int)
+    # Lấy mẫu ngẫu nhiên để tránh lỗi bộ nhớ
+    df_sample = df.sample(n=10000, random_state=42).copy()
 
+    # Tiền xử lý: điền missing values
+    df_sample[['Product_Category_2', 'Product_Category_3']] = df_sample[['Product_Category_2', 'Product_Category_3']].fillna(0)
+
+    # Chỉ chọn các đặc trưng quan trọng để clustering (giảm chiều dữ liệu)
+    features_to_use = [
+        'Gender', 'Age', 'Occupation', 'City_Category', 
+        'Stay_In_Current_City_Years', 'Marital_Status',
+        'Product_Category_1', 'Product_Category_2', 'Product_Category_3',
+        'Purchase'
+    ]
+
+    df_cluster = df_sample[features_to_use].copy()
+
+    # One-hot encoding chỉ các cột categorical
+    categorical_cols = ['Gender', 'Age', 'City_Category', 'Stay_In_Current_City_Years']
+    df_cluster = pd.get_dummies(df_cluster, columns=categorical_cols, dtype=int)
+
+    # Chuẩn hóa dữ liệu
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X_cluster)
+    X_scaled = scaler.fit_transform(df_cluster)
 
-    kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
-    df_cluster['Cluster'] = kmeans.fit_predict(X_scaled)
+    # Huấn luyện KMeans với k=3
+    with st.spinner("Đang thực hiện phân cụm..."):
+        kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+        df_sample['Cluster'] = kmeans.fit_predict(X_scaled)
 
-    st.write("Kết quả phân cụm (5 dòng đầu tiên)")
-    st.dataframe(df_cluster[['User_ID', 'Occupation', 'Marital_Status', 'Purchase', 'Cluster']].head())
+    st.success("✅ Phân cụm hoàn tất!")
 
-    st.write(f"WCSS (Within-Cluster Sum of Squares): **{kmeans.inertia_ * 0.001:.2f}** (đã điều chỉnh đơn vị)")
+    # Hiển thị kết quả mẫu
+    st.subheader("Kết quả phân cụm (mẫu 10 dòng)")
+    display_cols = ['User_ID', 'Gender', 'Age', 'City_Category', 'Purchase', 'Cluster']
+    st.dataframe(df_sample[display_cols].head(10))
+
+    # Thống kê mỗi cụm
+    st.subheader("Thống kê trung bình theo từng cụm")
+    cluster_summary = df_sample.groupby('Cluster').agg({
+        'Purchase': ['mean', 'median', 'count'],
+        'Age': lambda x: x.mode().iloc[0] if not x.empty else 'N/A',
+        'Gender': lambda x: x.mode().iloc[0] if not x.empty else 'N/A',
+        'City_Category': lambda x: x.mode().iloc[0] if not x.empty else 'N/A'
+    }).round(2)
+
+    cluster_summary.columns = ['Mean_Purchase', 'Median_Purchase', 'Count', 'Most_Common_Age', 'Most_Common_Gender', 'Most_Common_City']
+    cluster_summary = cluster_summary.reset_index()
+    cluster_summary['Cluster'] = cluster_summary['Cluster'].astype(str).str.replace('0', 'Cụm 0').str.replace('1', 'Cụm 1').str.replace('2', 'Cụm 2')
+
+    st.dataframe(cluster_summary.style.format({
+        'Mean_Purchase': '{:,.0f}',
+        'Median_Purchase': '{:,.0f}',
+        'Count': '{:,}'
+    }))
+
+    # Biểu đồ mức chi tiêu trung bình theo cụm
+    st.subheader("Mức chi tiêu trung bình theo cụm")
+    fig_cluster, ax_cluster = plt.subplots(figsize=(8, 6))
+    sns.barplot(
+        data=df_sample,
+        x='Cluster',
+        y='Purchase',
+        palette='viridis',
+        errorbar=None,
+        ax=ax_cluster
+    )
+    ax_cluster.set_title('Average Purchase by Customer Cluster')
+    ax_cluster.set_ylabel('Average Purchase (USD)')
+    ax_cluster.set_xlabel('Cluster')
+    st.pyplot(fig_cluster)
 
 # --- DỰ ĐOÁN MỨC CHI TIÊU ---
 elif page == "Dự đoán mức chi tiêu (Linear Regression)":
